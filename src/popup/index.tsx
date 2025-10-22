@@ -1,3 +1,5 @@
+import "../style.css"
+
 import { Main } from "~components/main"
 
 function IndexPopup() {
