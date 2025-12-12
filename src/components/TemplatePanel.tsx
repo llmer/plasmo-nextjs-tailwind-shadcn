@@ -60,12 +60,16 @@ export function TemplatePanel({ regionName, onClose }: TemplatePanelProps) {
         throw new Error("No screenshot received");
       }
 
-      // Crop to region bounds
+      // Crop to region bounds (accounting for device pixel ratio)
+      // Source coordinates are scaled by DPR, output is CSS pixel size
+      const dpr = window.devicePixelRatio || 1;
       const cropped = await cropImage(
         screenshot,
-        region.bounds_abs.x,
-        region.bounds_abs.y,
-        region.bounds_abs.w,
+        region.bounds_abs.x * dpr,
+        region.bounds_abs.y * dpr,
+        region.bounds_abs.w * dpr,
+        region.bounds_abs.h * dpr,
+        region.bounds_abs.w,  // Output at CSS pixel size
         region.bounds_abs.h
       );
 
@@ -187,28 +191,35 @@ export function TemplatePanel({ regionName, onClose }: TemplatePanelProps) {
 }
 
 /**
- * Crop an image to specified bounds.
+ * Crop an image to specified bounds and resize to output dimensions.
+ *
+ * @param dataUri - Source image as data URI
+ * @param srcX, srcY, srcW, srcH - Source rectangle to crop (in source image pixels)
+ * @param outW, outH - Output dimensions (may differ from source for DPR scaling)
  */
 async function cropImage(
   dataUri: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number
+  srcX: number,
+  srcY: number,
+  srcW: number,
+  srcH: number,
+  outW: number,
+  outH: number
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = outW;
+        canvas.height = outH;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
           reject(new Error("Failed to get canvas context"));
           return;
         }
-        ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+        // Draw from source rect to output rect (scales if sizes differ)
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
         resolve(canvas.toDataURL("image/png"));
       } catch (e) {
         reject(e);

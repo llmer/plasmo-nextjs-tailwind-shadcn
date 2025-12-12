@@ -37,10 +37,12 @@ export interface BoundsAbs {
 }
 
 /**
- * OCR preprocessing configuration.
+ * OCR configuration.
  */
 export interface OCRConfig {
-  preprocessing: "threshold" | "adaptive" | "none";
+  backend?: "easyocr" | "tesseract"; // OCR backend (default: easyocr)
+  // Tesseract-specific settings (used when backend="tesseract")
+  preprocessing: "high_threshold" | "threshold" | "adaptive" | "none";
   psm: number; // Tesseract page segmentation mode (0-13)
   whitelist: string; // Characters to recognize
 }
@@ -73,6 +75,8 @@ export type RegionName =
   | "balance"
   | "bet_amount"
   | "win_amount"
+  | "minigame_current_win"
+  | "minigame_possible_win"
   | "spin_button"
   | "gamble_button"
   | "collect_button"
@@ -98,6 +102,8 @@ export const REQUIRED_REGIONS: RegionName[] = [
  * Optional regions that enhance functionality but aren't strictly required.
  */
 export const OPTIONAL_REGIONS: RegionName[] = [
+  "minigame_current_win",
+  "minigame_possible_win",
   "red_card",
   "black_card",
   "bonus_indicator",
@@ -114,8 +120,9 @@ export const ALL_REGIONS: RegionName[] = [...REQUIRED_REGIONS, ...OPTIONAL_REGIO
  * Default OCR configuration for value extraction.
  */
 export const DEFAULT_OCR_CONFIG: OCRConfig = {
-  preprocessing: "threshold",
-  psm: 7,
+  backend: "easyocr", // Deep learning OCR - handles varied backgrounds without preprocessing
+  preprocessing: "high_threshold", // Tesseract fallback setting
+  psm: 6, // Tesseract page segmentation mode
   whitelist: "0123456789.,",
 };
 

@@ -11,6 +11,7 @@ import { OCRPreview } from "./OCRPreview";
 import { ExportPanel } from "./ExportPanel";
 import { ImportPanel } from "./ImportPanel";
 import type { RegionName } from "../types";
+import { getCalibrationConfig, addTemplate } from "../lib/storage";
 
 type Tab = "regions" | "export";
 type PanelType = "template" | "ocr" | null;
@@ -24,11 +25,53 @@ function getPanelType(regionName: string): PanelType {
   return "template";
 }
 
+/**
+ * Crop an image to specified bounds and resize to output dimensions.
+ *
+ * @param dataUri - Source image as data URI
+ * @param srcX, srcY, srcW, srcH - Source rectangle to crop (in source image pixels)
+ * @param outW, outH - Output dimensions (may differ from source for DPR scaling)
+ */
+async function cropImage(
+  dataUri: string,
+  srcX: number,
+  srcY: number,
+  srcW: number,
+  srcH: number,
+  outW: number,
+  outH: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+        // Draw from source rect to output rect (scales if sizes differ)
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = dataUri;
+  });
+}
+
 export function Main() {
   const [activeTab, setActiveTab] = useState<Tab>("regions");
   const [overlayMode, setOverlayMode] = useState<"hidden" | "preview" | "calibrate">("hidden");
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [openPanel, setOpenPanel] = useState<PanelType>(null);
+  const [capturing, setCapturing] = useState(false);
+  const [captureStatus, setCaptureStatus] = useState<string | null>(null);
 
   const handleSelectRegion = useCallback((name: string) => {
     setSelectedRegion(name);
@@ -79,6 +122,80 @@ export function Main() {
     setOpenPanel(null);
   }, []);
 
+  const handleCaptureAll = useCallback(async () => {
+    setCapturing(true);
+    setCaptureStatus("Getting screenshot...");
+
+    try {
+      // Get current config
+      const config = await getCalibrationConfig();
+      if (!config) {
+        setCaptureStatus("Error: No config found");
+        return;
+      }
+
+      // Request screenshot from background
+      const response = await chrome.runtime.sendMessage({ type: "CAPTURE_SCREENSHOT" });
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const screenshot = response.screenshot;
+      if (!screenshot) {
+        throw new Error("No screenshot received");
+      }
+
+      // Get device pixel ratio for coordinate scaling
+      const dpr = window.devicePixelRatio || 1;
+
+      // Find all template regions with non-zero bounds
+      const templateRegions = Object.entries(config.regions).filter(
+        ([, region]) =>
+          region.type === "template" &&
+          region.bounds_abs.w > 0 &&
+          region.bounds_abs.h > 0
+      );
+
+      if (templateRegions.length === 0) {
+        setCaptureStatus("No template regions with bounds defined");
+        return;
+      }
+
+      // Capture each region
+      let captured = 0;
+      for (const [name, region] of templateRegions) {
+        setCaptureStatus(`Capturing ${name}... (${captured + 1}/${templateRegions.length})`);
+
+        try {
+          // Crop to region bounds (accounting for device pixel ratio)
+          // Source coordinates are scaled by DPR, output is CSS pixel size
+          const cropped = await cropImage(
+            screenshot,
+            region.bounds_abs.x * dpr,
+            region.bounds_abs.y * dpr,
+            region.bounds_abs.w * dpr,
+            region.bounds_abs.h * dpr,
+            region.bounds_abs.w,  // Output at CSS pixel size
+            region.bounds_abs.h
+          );
+
+          // Save template with name "visible" (overwrite if exists)
+          await addTemplate(name, "visible", cropped);
+          captured++;
+        } catch (e) {
+          console.error(`Failed to capture ${name}:`, e);
+        }
+      }
+
+      setCaptureStatus(`Captured ${captured}/${templateRegions.length} templates`);
+      setTimeout(() => setCaptureStatus(null), 3000);
+    } catch (e) {
+      setCaptureStatus(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
+    } finally {
+      setCapturing(false);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col gap-3 p-3 w-[420px] min-h-[520px]">
       {/* Header */}
@@ -123,6 +240,24 @@ export function Main() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === "regions" && (
           <div className="flex flex-col gap-3">
+            {/* Capture All Templates */}
+            <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleCaptureAll}
+                disabled={capturing}
+                className="flex-shrink-0"
+              >
+                {capturing ? "Capturing..." : "Capture All Templates"}
+              </Button>
+              {captureStatus && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {captureStatus}
+                </span>
+              )}
+            </div>
+
             <RegionList
               onSelectRegion={handleSelectRegion}
               onDrawRegion={handleDrawRegion}
