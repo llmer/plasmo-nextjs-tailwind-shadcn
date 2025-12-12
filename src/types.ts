@@ -77,6 +77,7 @@ export type RegionName =
   | "win_amount"
   | "minigame_current_win"
   | "minigame_possible_win"
+  | "minigame_result"
   | "spin_button"
   | "gamble_button"
   | "collect_button"
@@ -104,6 +105,7 @@ export const REQUIRED_REGIONS: RegionName[] = [
 export const OPTIONAL_REGIONS: RegionName[] = [
   "minigame_current_win",
   "minigame_possible_win",
+  "minigame_result",
   "red_card",
   "black_card",
   "bonus_indicator",
@@ -230,7 +232,7 @@ export function createEmptyConfig(viewport: Size): CalibrationConfig {
 
   // Create empty regions for all predefined names
   for (const name of ALL_REGIONS) {
-    const isOCR = ["balance", "bet_amount", "win_amount"].includes(name);
+    const isOCR = ["balance", "bet_amount", "win_amount", "minigame_current_win", "minigame_possible_win", "minigame_result"].includes(name);
     regions[name] = {
       bounds_pct: { x: 0, y: 0, w: 0, h: 0 },
       bounds_abs: { x: 0, y: 0, w: 0, h: 0 },

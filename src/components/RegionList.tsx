@@ -25,6 +25,7 @@ const PREDEFINED_REGIONS: Array<{
   { name: "collect_button", type: "template", required: true, description: "COLLECT button" },
   { name: "minigame_current_win", type: "ocr", required: false, description: "Minigame current win" },
   { name: "minigame_possible_win", type: "ocr", required: false, description: "Minigame possible win" },
+  { name: "minigame_result", type: "ocr", required: false, description: "Minigame result text (WON/GAME OVER)" },
   { name: "red_card", type: "template", required: false, description: "Red card choice" },
   { name: "black_card", type: "template", required: false, description: "Black card choice" },
   { name: "bonus_indicator", type: "template", required: false, description: "FREE SPINS" },
