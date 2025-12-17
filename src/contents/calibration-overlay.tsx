@@ -523,6 +523,12 @@ function RegionBox({
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
+        // Notify popup that a region was clicked
+        console.log("[CalibrationOverlay] Sending REGION_CLICKED for:", name);
+        chrome.runtime.sendMessage({
+          type: "REGION_CLICKED",
+          regionName: name,
+        });
       }}
       onMouseDown={(e) => handleMouseDown(e, "move")}
     >

@@ -210,9 +210,9 @@ export function validateConfig(config: CalibrationConfig): string[] {
     // Validate OCR config if present
     if (region.ocr_config) {
       const ocr = region.ocr_config;
-      if (!["threshold", "adaptive", "none"].includes(ocr.preprocessing)) {
+      if (!["high_threshold", "threshold", "adaptive", "none"].includes(ocr.preprocessing)) {
         errors.push(
-          `${prefix}.ocr_config.preprocessing: must be 'threshold', 'adaptive', or 'none', got '${ocr.preprocessing}'`
+          `${prefix}.ocr_config.preprocessing: must be 'high_threshold', 'threshold', 'adaptive', or 'none', got '${ocr.preprocessing}'`
         );
       }
       if (ocr.psm < 0 || ocr.psm > 13) {
@@ -225,19 +225,48 @@ export function validateConfig(config: CalibrationConfig): string[] {
 }
 
 /**
+ * OCR config for numeric values (balance, bet, win amounts).
+ */
+export const NUMERIC_OCR_CONFIG: OCRConfig = {
+  backend: "easyocr",
+  preprocessing: "none",
+  psm: 6,
+  whitelist: "0123456789.,",
+};
+
+/**
+ * OCR config for text detection (minigame result - needs full alphabet).
+ */
+export const TEXT_OCR_CONFIG: OCRConfig = {
+  backend: "easyocr",
+  preprocessing: "none",
+  psm: 6,
+  whitelist: "", // Empty = all characters
+};
+
+/**
  * Create an empty calibration config with default structure.
  */
 export function createEmptyConfig(viewport: Size): CalibrationConfig {
   const regions: Record<string, RegionConfig> = {};
 
+  // Numeric OCR regions (digits only)
+  const numericOCRRegions = ["balance", "bet_amount", "win_amount", "minigame_current_win", "minigame_possible_win"];
+  // Text OCR regions (full text detection)
+  const textOCRRegions = ["minigame_result"];
+
   // Create empty regions for all predefined names
   for (const name of ALL_REGIONS) {
-    const isOCR = ["balance", "bet_amount", "win_amount", "minigame_current_win", "minigame_possible_win", "minigame_result"].includes(name);
+    const isNumericOCR = numericOCRRegions.includes(name);
+    const isTextOCR = textOCRRegions.includes(name);
+    const isOCR = isNumericOCR || isTextOCR;
+
     regions[name] = {
       bounds_pct: { x: 0, y: 0, w: 0, h: 0 },
       bounds_abs: { x: 0, y: 0, w: 0, h: 0 },
       type: isOCR ? "ocr" : "template",
-      ...(isOCR ? { ocr_config: { ...DEFAULT_OCR_CONFIG } } : {}),
+      ...(isNumericOCR ? { ocr_config: { ...NUMERIC_OCR_CONFIG } } : {}),
+      ...(isTextOCR ? { ocr_config: { ...TEXT_OCR_CONFIG } } : {}),
     };
   }
 

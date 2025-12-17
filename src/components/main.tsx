@@ -2,7 +2,7 @@
  * Main popup component for the calibration extension.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { RegionList } from "./RegionList";
@@ -121,6 +121,21 @@ export function Main() {
   const handleClosePanel = useCallback(() => {
     setOpenPanel(null);
   }, []);
+
+  // Listen for region clicks from content script overlay
+  useEffect(() => {
+    const handleMessage = (message: { type: string; regionName?: string }) => {
+      console.log("[Main] Received message:", message);
+      if (message.type === "REGION_CLICKED" && message.regionName) {
+        console.log("[Main] Opening panel for region:", message.regionName);
+        handleSelectRegion(message.regionName);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    console.log("[Main] Message listener registered");
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, [handleSelectRegion]);
 
   const handleCaptureAll = useCallback(async () => {
     setCapturing(true);
